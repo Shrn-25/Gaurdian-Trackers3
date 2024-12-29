@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Child Safety Device</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+    }
+
+    #container {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      margin: 50px auto;
+      background-color: #fff;
+      border: 2px solid #000;
+      border-radius: 50%;
+    }
+
+    .led {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background-color: #ccc;
+      border-radius: 50%;
+    }
+
+    #centerRgb {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background-color: #00ff00;
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    #distance {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+
+    #alert {
+      margin-top: 20px;
+      font-size: 20px;
+      color: red;
+      font-weight: bold;
+    }
+
+    #buzzer {
+      margin-top: 10px;
+      font-size: 18px;
+      color: blue;
+      font-weight: bold;
+    }
+
+    #distressButton {
+      margin: 20px auto;
+      padding: 10px 20px;
+      font-size: 20px;
+      background-color: red;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Child Safety Device</h1>
+  <div id="container">
+    <div id="centerRgb"></div>
+    <div class="led" id="led1"></div>
+    <div class="led" id="led2"></div>
+    <div class="led" id="led3"></div>
+    <div class="led" id="led4"></div>
+    <div class="led" id="led5"></div>
+    <div class="led" id="led6"></div>
+    <div class="led" id="led7"></div>
+    <div class="led" id="led8"></div>
+  </div>
+  <div id="distance">Distance: <span id="distanceValue">0.5</span> meters</div>
+  <div id="alert"></div>
+  <div id="buzzer"></div>
+  <button id="distressButton" onclick="toggleDistressMode()">Distress</button>
+
+  <script>
+    const leds = [];
+    const radius = 120; // Radius for positioning LEDs
+    let distance = 0.5; // Starting distance
+    let isDistressMode = false; // Controls whether simulation is active
+    let simulationInterval;
+
+    // Position LEDs around the circle
+    function positionLeds() {
+      const angleStep = (2 * Math.PI) / 8;
+      for (let i = 1; i <= 8; i++) {
+        const angle = i * angleStep;
+        const x = radius * Math.cos(angle) + 150 - 20; // Adjust for LED size
+        const y = radius * Math.sin(angle) + 150 - 20;
+        const led = document.getElementById(`led${i}`);
+        led.style.left = `${x}px`;
+        led.style.top = `${y}px`;
+        leds.push(led);
+      }
+    }
+
+    // Update LED states based on ESP32 data
+    function updateLeds(ledNum, dist) {
+      // Update distance display
+      document.getElementById("distanceValue").textContent = dist.toFixed(2);
+      
+      // Update center RGB LED color based on distance
+      const rgbLed = document.getElementById("centerRgb");
+      const alertText = document.getElementById("alert");
+      const buzzerText = document.getElementById("buzzer");
+
+      if (dist <= 2) {
+        rgbLed.style.backgroundColor = "#00ff00"; // Green
+        alertText.textContent = "";
+        buzzerText.textContent = "";
+      } else if (dist > 2 && dist <= 5) {
+        rgbLed.style.backgroundColor = "#ffcc00"; // Yellow
+        alertText.textContent = "Alert! Child is moving farther.";
+        buzzerText.textContent = "";
+      } else if (dist > 5 && dist < 6) {
+        rgbLed.style.backgroundColor = "#ff0000"; // Red
+        alertText.textContent = "High Alert! Child is too far.";
+        buzzerText.textContent = "";
+      } else {
+        rgbLed.style.backgroundColor = "#000000"; // Black
+        alertText.textContent = "Connection Lost!";
+        buzzerText.textContent = "Buzzer is activated!";
+      }
+
+      // Turn off all LEDs
+      leds.forEach((l) => (l.style.backgroundColor = "#ccc"));
+
+      // Turn the selected LED on
+      const led = document.getElementById(`led${ledNum}`);
+      led.style.backgroundColor = "#ff0000"; // Red
+    }
+
+    // Fetch data from ESP32
+    async function fetchData() {
+      try {
+        const response = await fetch('http://<192.168.225.92>/data'); // Replace with your ESP32 IP
+        const data = await response.json();
+
+        const { ledNumber, distance } = data;
+
+        // Update LEDs based on received data
+        updateLeds(ledNumber, distance);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    }
+
+    // Toggle distress mode
+    function toggleDistressMode() {
+      isDistressMode = !isDistressMode;
+
+      const distressButton = document.getElementById("distressButton");
+      const alertText = document.getElementById("alert");
+      const buzzerText = document.getElementById("buzzer");
+
+      if (isDistressMode) {
+        distressButton.textContent = "Reset";
+        distressButton.style.backgroundColor = "green";
+        alertText.textContent = "DISTRESS ALERT!";
+        buzzerText.textContent = "Buzzer Activated!";
+        clearInterval(simulationInterval); // Stop simulation
+      } else {
+        distressButton.textContent = "Distress";
+        distressButton.style.backgroundColor = "red";
+        alertText.textContent = "";
+        buzzerText.textContent = "";
+        simulationInterval = setInterval(fetchData, 2000); // Fetch data every 2 seconds
+      }
+    }
+
+    // Initialize the simulation
+    window.onload = () => {
+      positionLeds();
+      simulationInterval = setInterval(fetchData, 2000); // Fetch data every 2 seconds
+    };
+  </script>
+</body>
+</html>
